@@ -1,32 +1,73 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <meta charset="UTF-8">
-    <title>SSE Example</title>
-</head>
-<body>
-    <h1>Server-Sent Events Example</h1>
+  <head>
+    <meta charset="UTF-8" />
+    <title>SSE Counter</title>
+  </head>
+  <body>
+    <h1>Server-Sent Events Counter</h1>
     <div id="count">Waiting for updates...</div>
     <div>
-        <button id="inc" onclick="increment()">Increment</button>
+      <button id="inc" onclick="increment()">Increment</button>
     </div>
     <script type="text/javascript">
-        const eventSource = new EventSource("/sse");
+      const countElement = document.getElementById("count");
+      const incrementButton = document.getElementById("inc");
 
-        eventSource.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            document.getElementById("count").innerText = "Count: " + data;
-        };
+      console.log("Connecting to SSE endpoint...");
+      const eventSource = new EventSource("/sse");
 
-        eventSource.onerror = function(err) {
-            console.error("EventSource failed:", err);
-        };
+      eventSource.onopen = function (event) {
+        console.log("SSE connection opened.");
+        countElement.innerText = "Connected. Waiting for count...";
+        incrementButton.disabled = false;
+      };
 
-        function increment() {
-            fetch("/inc", {
-                method: "POST"
-            });
+      eventSource.onmessage = function (event) {
+        try {
+          const count = JSON.parse(event.data);
+          countElement.textContent = "Count: " + count;
+        } catch (e) {
+          console.error("Failed to parse SSE data:", event.data, e);
+          countElement.textContent = "Error parsing data.";
         }
+      };
+
+      eventSource.onerror = function (err) {
+        console.error("EventSource failed:", err);
+        countElement.textContent = "Connection error!";
+        incrementButton.disabled = true;
+      };
+
+      async function increment() {
+        incrementButton.disabled = true;
+        console.log("Sending increment request...");
+        try {
+          const response = await fetch("/inc", {
+            method: "POST",
+          });
+
+          if (!response.ok) {
+            console.error(
+              "Increment request failed:",
+              response.status,
+              response.statusText
+            );
+            alert("Failed to increment counter. Status: " + response.status);
+          } else {
+            console.log("Increment request successful.");
+          }
+        } catch (error) {
+          console.error("Network error during increment:", error);
+          alert("Network error. Could not increment counter.");
+        } finally {
+          if (!eventSource || eventSource.readyState !== EventSource.CLOSED) {
+            incrementButton.disabled = false;
+          }
+        }
+      }
+
+      incrementButton.disabled = true;
     </script>
-</body>
+  </body>
 </html>

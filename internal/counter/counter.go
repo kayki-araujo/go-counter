@@ -1,40 +1,41 @@
 package counter
 
 import (
+	"log"
 	"sync"
 )
 
-type ObservableCount struct {
+type ObservableCounter struct {
 	sync.RWMutex
 	counter   int
-	observers map[chan int]bool
+	observers map[chan int]struct{}
 }
 
-func NewObservableCount() *ObservableCount {
-	return &ObservableCount{
-		observers: make(map[chan int]bool),
+func NewObservableCounter() *ObservableCounter {
+	return &ObservableCounter{
+		observers: make(map[chan int]struct{}),
 	}
 }
 
-func (oc *ObservableCount) Subscribe() (chan int, int) {
+func (oc *ObservableCounter) Subscribe() (chan int, int) {
 	ch := make(chan int, 10)
 
 	oc.Lock()
-	oc.observers[ch] = true
+	oc.observers[ch] = struct{}{}
 	currentCount := oc.counter
 	oc.Unlock()
 
 	return ch, currentCount
 }
 
-func (oc *ObservableCount) Unsubscribe(ch chan int) {
+func (oc *ObservableCounter) Unsubscribe(ch chan int) {
 	oc.Lock()
-	close(ch)
 	delete(oc.observers, ch)
+	close(ch)
 	oc.Unlock()
 }
 
-func (oc *ObservableCount) Inc() {
+func (oc *ObservableCounter) Inc() {
 	oc.Lock()
 	oc.counter++
 	newVal := oc.counter
@@ -45,13 +46,15 @@ func (oc *ObservableCount) Inc() {
 		select {
 		case ch <- newVal:
 		default:
+			log.Printf("Observer channel buffer full for %v, skipping update", ch)
 		}
 	}
 	oc.RUnlock()
 }
 
-func (oc *ObservableCount) GetValue() int {
+func (oc *ObservableCounter) GetValue() int {
 	oc.RLock()
 	defer oc.RUnlock()
+
 	return oc.counter
 }

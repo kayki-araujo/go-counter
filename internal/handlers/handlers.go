@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var counterInstance = counter.NewObservableCount()
+var counterInstance = counter.NewObservableCounter()
 
 func HomePage(ctx *gin.Context) {
 	ctx.HTML(http.StatusOK, "index.html", nil)

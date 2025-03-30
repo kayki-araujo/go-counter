@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"fmt"
+	"log"
 	"net/http"
 
 	"counter/internal/counter"
@@ -25,7 +25,7 @@ func SSEHandler(ctx *gin.Context) {
 	ctx.Writer.Header().Set("Cache-Control", "no-cache")
 	ctx.Writer.Header().Set("Connection", "keep-alive")
 
-	clientGone := ctx.Writer.CloseNotify()
+	clientGone := ctx.Request.Context().Done()
 
 	observerCh, currentCount := counterInstance.Subscribe()
 	defer counterInstance.Unsubscribe(observerCh)
@@ -36,12 +36,15 @@ func SSEHandler(ctx *gin.Context) {
 	for {
 		select {
 		case <-clientGone:
-			fmt.Println("Client disconnected")
+			log.Println("Client disconnected")
 			return
-		case newCount := <-observerCh:
+		case newCount, ok := <-observerCh:
+			if !ok {
+				log.Println("Observer channel closed, ending SSE stream.")
+				return
+			}
 			ctx.SSEvent("message", newCount)
 			ctx.Writer.Flush()
-			fmt.Println(newCount)
 		}
 	}
 }
